@@ -3,14 +3,14 @@
 A header-only, pure C++ interactive terminal file picker. No curses, no third-party libraries. Just ANSI escape codes and `<filesystem>`.
 
 > [!WARNING]
-> **The content here is extremely similar to poop.** 
+> **The content here is extremely similar to poop.** 💩
 
 ## Features
-- **Header-only**: Just `#include` and go.
-- **Zero Dependencies**: Only C++17 Standard Library.
-- **Smooth Scrolling**: Custom viewport logic for large folders.
-- **Cross-Platform**: Works on Windows (`conio.h`) and Unix (`termios.h`).
-- **ANSI UI**: Hidden cursor, reverse-video highlighting, clean exit.
+- **Header-only**: Just `#include` and go.💩
+- **Zero Dependencies**: Only C++17 Standard Library.💩
+- **Smooth Scrolling**: Custom viewport logic for large folders.💩
+- **Cross-Platform**: Works on Windows (`conio.h`) and Unix (`termios.h`).💩
+- **ANSI UI**: Hidden cursor, reverse-video highlighting, clean exit.💩
 
 ## Usage
 
