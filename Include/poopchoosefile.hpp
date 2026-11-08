@@ -1,0 +1,210 @@
+#ifndef POOPCHOOSEFILE_HPP
+#define POOPCHOOSEFILE_HPP
+
+#include <iostream>
+#include <vector>
+#include <filesystem>
+#include <thread>
+
+#ifdef _WIN32
+    #include <conio.h>
+    #include <windows.h>
+    #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        #define ENABLE_VIRTUAL_TERMINAL_PROCESSING 0x0004
+    #endif
+#else
+    #include <termios.h>
+    #include <unistd.h>
+#endif
+
+namespace poop
+{
+    struct file
+    {
+        std::string name;
+        bool level = 0;
+        std::string path;
+        // 0 : directory
+        // 1 : file
+    };
+    inline bool init()
+    {
+        #ifdef _WIN32
+            HANDLE hOut = GetStdHandle(STD_OUTPUT_HANDLE);
+            if (hOut == INVALID_HANDLE_VALUE) return false;
+            DWORD dwMode = 0;
+            if (!GetConsoleMode(hOut, &dwMode)) return false;
+            dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+            system("chcp 65001 > nul");
+            return SetConsoleMode(hOut, dwMode) != 0;
+        #else
+            return true;
+        #endif
+    }
+    inline int getKey()
+    {
+        #ifdef _WIN32
+            if(_kbhit())
+            {
+                int key = _getch();
+                if (key == 0 || key == 224)
+                {
+                    return _getch(); 
+                }
+                return key;
+            }
+            return -1;
+        #else
+            struct termios oldt, newt;
+            int ch;
+            tcgetattr(STDIN_FILENO, &oldt);
+            newt = oldt;
+            newt.c_lflag &= ~(ICANON | ECHO);
+            tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+            ch = getchar();
+            tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+            return ch;
+        #endif
+    }
+    inline std::vector <std::string> getDrives()
+    {
+        std::vector<std::string> drives;
+        #ifdef _WIN32
+            DWORD bitmask = GetLogicalDrives();
+            for (int i = 0; i < 26; ++i) { 
+                if (bitmask & (1 << i)) {
+                    char driveLetter = 'A' + i;
+                    std::string root = std::string(1, driveLetter) + ":\\";
+                    drives.push_back(root);
+                }
+            }
+        #else
+            drives.push_back("/");
+        #endif
+        return drives;
+    }
+    inline std::vector <file> getDir(std::string pa)
+    {
+        std::vector <file> dir;
+        std::filesystem::path path = pa;
+        std::string up = path.parent_path().string();
+        if(pa == up) up = "Your PC";
+        dir.push_back({".." , 0 , up});
+        for(const auto &a : std::filesystem::directory_iterator(path))
+        {
+            std::string name = a.path().filename().string();
+            if(a.is_directory())
+            {
+                dir.push_back({name , 0 , a.path().string()});
+            }
+            else dir.push_back({name , 1 , a.path().string()});
+        }
+        return dir;
+    }
+    inline std::string chooseFile(int maxHigh)
+    {
+        std::string nowPath = "Your PC";
+        int nowPos = 0;
+        int up = 0;
+        while(1)
+        {
+            std::cout << "\033[2J\033[H" << std::flush;
+            std::cout << "Path : " << nowPath << "\n";
+            std::cout << "\033[?25l"; 
+            int len;
+            std::vector <file> to;
+            if(nowPath == "Your PC")
+            {
+                std::vector <std::string> v = getDrives();
+                len = v.size();
+                for(int i = 0; i < len; i++)
+                {
+                    to.push_back({v[i], 0, v[i]});
+                }
+                if(nowPos < up) up = nowPos;
+                if(nowPos >= up + maxHigh) up = nowPos - maxHigh + 1;
+                if(up < 0) up = 0;
+                int l = up + maxHigh - 1;
+                for(int i = up;i <= std::min(len - 1 , l);i ++)
+                {
+                    if(i == nowPos)
+                    {
+                        std::cout << "\033[7m-> | " << v[i] << "\033[0m\n";
+                    }
+                    else std::cout << "   | " << v[i] << "\n";
+                }
+            }
+            else
+            {
+                to = getDir(nowPath);
+                len = to.size();
+                if(nowPos < up) up = nowPos;
+                if(nowPos >= up + maxHigh) up = nowPos - maxHigh + 1;
+                if(up < 0) up = 0;
+                int l = up + maxHigh - 1;
+                for(int i = up;i <= std::min(len - 1 , l);i ++)
+                {
+                    if(i == nowPos)
+                    {
+                        std::cout << "\033[7m-> | " << to[i].name << "\033[0m\n";
+                    }
+                    else std::cout << "   | " << to[i].name << "\n";
+                }
+            }
+            if(len == 0) continue;
+            len --;
+            while(1)
+            {
+                int key = getKey();
+                if(key == -1)
+                {
+                    #ifdef _WIN32
+                        Sleep(10);
+                    #else
+                        usleep(10000);
+                    #endif
+                    continue;
+                }
+                if(key == 72)
+                {
+                    nowPos --;
+                    if(nowPos < 0)
+                    {
+                        nowPos = len; 
+                    }
+                    break;
+                }
+                if(key == 80)
+                {
+                    nowPos ++;
+                    if(nowPos > len) nowPos = 0;
+                    break;
+                }
+                if(key == 13)
+                {
+                    if(to[nowPos].level == 1)
+                    {
+                        std::cout << "\033[?25h";
+                        std::cout << "\033[2J\033[H" << std::flush;
+                        return to[nowPos].path;
+                    }
+                    else
+                    {
+                        nowPath = to[nowPos].path;
+                        nowPos = 0;
+                        up = 0;
+                    }
+                    break;
+                }
+                if(key == 27)
+                {
+                    std::cout << "\033[?25h";
+                    std::cout << "\033[2J\033[H" << std::flush;
+                    return "";
+                }
+            }
+        }
+    }
+}
+
+#endif
